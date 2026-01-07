@@ -1,4 +1,4 @@
-# Ball-Landing-Position-Prediction-
+# Ball_Landing_Position_Prediction
 
 Project summary
 ---------------
