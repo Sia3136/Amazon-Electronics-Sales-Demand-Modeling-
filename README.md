@@ -1,146 +1,139 @@
-<<<<<<< HEAD
-# Ball_Landing_Position_Prediction
+# Amazon-Electronics-Sales-Demand-Modeling
 
 Project summary
 ---------------
-This repository contains an end-to-end experiment that predicts where a passed ball will land (x and y coordinates after the pass) using tracking and player metadata. The script reads a merged dataset (`merged.csv`), performs data cleaning and feature engineering, visualizes relationships, removes outliers, trains several regression models (Linear, Ridge, Lasso) and reports performance (MSE and R²). The cleaned dataset is saved as `dstask-2.csv`.
+This repository contains an end-to-end analysis and baseline modeling pipeline that predicts product demand (monthly purchases) for Amazon electronics products using a scraped/merged dataset of 42K+ items (2025). The pipeline performs data cleaning and feature engineering on the raw/uncleaned file (`amazon_products_sales_data_uncleaned.csv`), creates exploratory visualizations and simple business insights, selects features, trains baseline regression models (Linear, Ridge, Lasso) on a log-transformed demand target, and writes a cleaned dataset `dstask-3.csv`.
 
 Dataset
 -------
-The input data comes from the 2025 Big Data Bowl and was prepared by the NFL Next Gen Stats team. The dataset used in this repository is expected to be a cleaned/merged CSV derived from that competition data. Please review the Big Data Bowl competition rules and the NFL Next Gen Stats terms of use before publishing or redistributing derivatives.
+- Name: Amazon Electronics Products Sales Dataset (42K+ items) — 2025
+- Source: Scraped/compiled dataset (provided to you). The repository contains an "uncleaned" CSV which this script ingests and preprocesses.
+- Files:
+  - `amazon_products_sales_data_uncleaned.csv` — input raw/uncleaned data (expected in project root).
+  - `dstask-3.csv` — cleaned output written by the script.
 
 Key results (from the run included in the code)
-- Linear Regression
-  - Mean Squared Error (MSE): 18.898472360256285
-  - R² Score: 0.9263678171657588
-- Ridge Regression
-  - Best alpha: 0.1
-  - MSE: 18.898447738549784
-  - R² Score: 0.9263678498796282
-- Lasso Regression
-  - Best alpha: 0.001
-  - MSE: 18.89842923744751
-  - R² Score: 0.9263667012983716
+- Models trained to predict log(1 + bought_in_last_month)
+  - Linear Regression
+    - Mean Squared Error (MSE): 3.008377681747854
+    - R² Score: 0.35392865285388486
+  - Ridge Regression (GridSearchCV)
+    - Best alpha: 0.1
+    - MSE: 3.008369954229035
+    - R² Score: 0.3539303123956784
+  - Lasso Regression (GridSearchCV)
+    - Best alpha: 0.001
+    - MSE: 3.008114079818107
+    - R² Score: 0.3539852633170242
 
-The three models perform almost identically on this dataset.
+Columns / example fields
+------------------------
+The raw file contains fields similar to:
+- title, rating, number_of_reviews, bought_in_last_month, current/discounted_price, price_on_variant, listed_price, is_best_seller, is_sponsored, is_couponed, buy_box_availability, delivery_details, sustainability_badges, image_url, product_url, collected_at
 
-Requirements
-------------
-- Python 3.8+
-- The following Python packages:
-  - pandas
-  - numpy
-  - matplotlib
-  - seaborn
-  - scikit-learn
+Targets and features
+--------------------
+- Target (y): log1p(bought_in_last_month) — natural log of (1 + monthly purchases), used to stabilize variance and improve modeling.
+- Features used (X) before selection / scaling:
+  - rating (float)
+  - number_of_reviews (float)
+  - current/discounted_price (float)
+  - price_on_variant (float)
+  - listed_price (float)
+  - is_sponsored (0/1)
+  - is_couponed (0/1)
+  - buy_box_availability (0/1)
+  - has_sustainability_badge (0/1)
+  - delivery_days (numeric)
+  - discount (listed_price - current/discounted_price)
+  - review_score (number_of_reviews * rating)
+  - has_coupon_or_discount (0/1)
 
-Install with pip:
-```
-pip install pandas numpy matplotlib seaborn scikit-learn
-```
-(or use a requirements file and `pip install -r requirements.txt`)
+Cleaning & feature engineering (what the script does)
+----------------------------------------------------
+1. Type coercion and basic parsing:
+   - Convert `title` to string.
+   - Parse `rating` (keeps first 3 chars and converts to float), fill missing with column mean.
+   - Clean `number_of_reviews` by removing commas and converting to float; missing → 0.
+   - Parse `current/discounted_price`, `price_on_variant`, and `listed_price` into numeric floats (strip currency characters).
+   - Parse `collected_at` to datetime (coerce errors).
+2. Boolean / categorical mappings:
+   - `is_sponsored`: 'Sponsored' → 1, 'Organic' → 0
+   - `buy_box_availability`: 'Add to cart' → 1, missing → 0
+   - `is_couponed`: 'No Coupon' → 0 else 1 (case-insensitive)
+   - `has_sustainability_badge`: presence of any badge → 1, missing/none → 0 (then drop `sustainability_badges`)
+3. Parse `bought_in_last_month` text like "300+ bought in past month", removing non-numeric tokens and converting to numeric (handles "K" → "000" in a basic way); missing → 0.
+4. Extract `delivery_days` from `delivery_details` (first integer found); missing → 0 and then drop `delivery_details`.
+5. Create derived features:
+   - `discount` = listed_price - current/discounted_price
+   - `review_score` = number_of_reviews * rating
+   - `has_coupon_or_discount` = (is_couponed == 1 OR discount > 0)
+6. Drop `is_best_seller` (unused) and other intermediary columns where appropriate.
+7. Outlier removal: For every numeric column the script computes IQR-based bounds (Q1 − 1.5*IQR, Q3 + 1.5*IQR) and removes rows outside those bounds. Note: this is aggressive and can remove many rows—check remaining sample size after running.
+8. Save cleaned DataFrame to `dstask-3.csv`.
 
-Files
------
-- `merged.csv` — Input dataset (required). This should be the merged CSV derived from the 2025 Big Data Bowl / NFL Next Gen Stats dataset (place it in the project root or update the path in the script).
-- `analysis.py` (or your Jupyter notebook) — The provided code performs all steps: cleaning, visualization, modeling and saving the cleaned CSV.
-- `dstask-2.csv` — Output cleaned dataset written by the script.
+Exploratory visualizations and business insights (from script)
+--------------------------------------------------------------
+- Couponed vs Bought in Last Month (boxplot)
+  - Insight: Coupons drive sales. Use couponing strategically to boost sales for low-selling SKUs.
+- Discount vs Bought in Last Month (scatter)
+  - Insight: Discounts increase sales; focus discounting on mid-range discounts for best uplift.
+- Listed Price vs Price on Variant (scatter)
+  - Insight: Variant pricing is proportional to base price — ensure consistent variant pricing and fix zero/incorrect listed prices.
+- Sustainability Badge vs Rating (boxplot)
+  - Insight: A sustainability badge slightly correlates with higher ratings — highlight sustainability in marketing.
+- Buy Box Availability vs Couponed (countplot)
+  - Insight: Items in the buy box are slightly more likely to have coupons — sellers use coupons to improve buy box chances.
+- Rating bins vs Bought in Last Month
+  - Insight: Higher-rated products (4.5+) consistently sell more — prioritize marketing & inventory for top-rated products.
 
-Data description
-----------------
-The raw (merged) data contains tracking and player metadata rows similar to:
-
-example fields:
-game_id, play_id, player_to_predict, nfl_id, frame_id, play_direction, absolute_yardline_number, player_name, player_height, player_weight, ..., x_x, y_x, x_y, y_y, ball_land_x, ball_land_y, speed, acceleration, direction, orientation, num_frames_output
-
-Target variables:
-- `x_y` and `y_y` — the x and y coordinates after the pass (the model predicts these).
-
-Features used for training (X)
-- frame_id
-- play_direction (encoded: right=1, left=0)
-- absolute_yardline_number
-- player_height (converted to inches)
-- player_weight
-- player_age (derived from `player_birth_date`)
-- x_x, y_x — player position before the pass
-- speed
-- acceleration
-- direction
-- orientation
-- num_frames_output
-- ball_land_x, ball_land_y
-- player_position (label-encoded)
-- player_side (Defense=1, Offense=0)
-- player_role (Defensive Coverage=1, Targeted Receiver=0)
-
-Target (y)
-- x_y, y_y
-
-Processing steps implemented
-----------------------------
-1. Read CSV: `pd.read_csv('/merged.csv')`.
-2. Basic inspection: `.info()`, `.describe()`, `.tail()`.
-3. Rename ambiguous columns:
-   - `s` → `speed`
-   - `a` → `acceleration`
-   - `dir` → `direction`
-   - `o` → `orientation`
-4. Drop unused or identifying columns:
-   - `game_id`, `play_id`, `nfl_id`, `player_name`, `player_to_predict`
-5. Encode categorical variables:
-   - `player_position` with `LabelEncoder`
-   - `play_direction`: `right` → 1, `left` → 0
-   - `player_side`: `Defense` → 1, `Offense` → 0
-   - `player_role`: `Defensive Coverage` → 1, `Targeted Receiver` → 0
-6. Convert `player_height` from "feet-inches" text (e.g. `6-1`) to integer inches.
-7. Convert `player_birth_date` to datetime and compute `player_age` in years; drop the original birth date.
-8. Visualizations:
-   - Correlation heatmap for movement features.
-   - Scatterplots to inspect relationships between pre- and post-pass coordinates and ball landing coordinates.
-9. Outlier removal:
-   - For every numeric column, remove rows outside the IQR-based bounds (Q1 - 1.5*IQR, Q3 + 1.5*IQR).
-   - Note: This is an aggressive procedure and may drop many rows; monitor remaining sample size.
-10. Standardize features using `StandardScaler`.
-11. Train/test split: `train_test_split(test_size=0.3, random_state=41)`.
-12. Train models:
+Modeling pipeline
+-----------------
+1. Prepare X and log-transformed y: y = np.log1p(df['bought_in_last_month'])
+2. Scale features with StandardScaler
+3. Feature selection: RFE (LinearRegression) used to select n_features_to_select=9 — selected features are printed during the run.
+4. Train/test split: train_test_split(..., test_size=0.3, random_state=41)
+5. Models trained and evaluated on the test set:
    - LinearRegression
-   - Ridge with GridSearchCV over alpha in [0.1, 1, 10, 50, 100], 5-fold CV
-   - Lasso with GridSearchCV over alpha in [0.001, 0.01, 0.1, 1, 10], 5-fold CV
-13. Evaluate with MSE and R².
-14. Save cleaned DataFrame to `dstask-2.csv`.
+   - Ridge (GridSearchCV over alpha = [0.1, 1, 10, 50, 100], 5-fold CV)
+   - Lasso (GridSearchCV over alpha = [0.001, 0.01, 0.1, 1, 10], 5-fold CV)
+6. Evaluation metrics: Mean Squared Error (MSE) and R²
 
 How to run
 ----------
-1. Place `merged.csv` (derived from the 2025 Big Data Bowl data) into the project root (or update the path in the script).
-2. Save the provided code into a file, e.g. `analysis.py` (or run it in a notebook cell).
-3. Run:
+1. Place `amazon_products_sales_data_uncleaned.csv` in the project root (or update the path in the script).
+2. Install dependencies:
+   - Python 3.8+
+   - pip install pandas numpy matplotlib seaborn scikit-learn
+3. Save the provided code into a file (e.g., `analysis_amazon.py`) or run as a notebook.
+4. Run:
 ```
-python analysis.py
+python analysis_amazon.py
 ```
-or run the notebook interactively.
+(or run notebook cells interactively)
+5. Outputs:
+   - Visualizations displayed (if run interactively)
+   - Cleaned CSV: `dstask-3.csv`
+   - Model performance printed to console
 
-Notes and caveats
------------------
-- The code suppresses warnings (`warnings.filterwarnings('ignore')`), so some preprocessing warnings may be hidden. Remove that suppression during development if you want to see warnings.
-- The IQR-based outlier removal is applied to all numeric columns iteratively. This can remove a large portion of rows if there are skewed distributions. Consider more conservative thresholds or column-specific handling.
-- `LabelEncoder` for `player_position` encodes labels into integers but does not preserve any ordinal meaning—consider one-hot encoding for non-ordinal categorical variables.
-- Age is computed using the current date at runtime (`pd.Timestamp.today()`), which makes results time-sensitive. For reproducibility, consider using a fixed reference date (e.g., season start date).
-- Model evaluation uses a single train/test split. Consider cross-validation for more robust performance estimates and to inspect variance in metrics.
-- The models predict two targets simultaneously (multi-output regression). Scikit-learn's linear models support multi-output out of the box but consider building separate models or using multi-output specific algorithms if appropriate.
-- Check Big Data Bowl / NFL Next Gen Stats licensing and competition rules before sharing or publishing outputs derived from the dataset.
+Reproducibility notes & caveats
+------------------------------
+- The script suppresses warnings (`warnings.filterwarnings('ignore')`) — remove that during development to catch issues.
+- Rating parsing takes the first three characters of the rating string (e.g., `"4.6 out of 5 stars"` → `"4.6"`). Verify this logic on edge cases.
+- `bought_in_last_month` parsing currently handles patterns like "300+ bought in past month" and converts "K" to "000" in a simple way — this may need refinement (e.g., "6K" → 6000).
+- Outlier removal is done across all numeric columns with the same IQR rule — this can remove many valid observations (use with caution or consider column-wise or robust alternatives).
+- RFE is used to inspect important features; the final split and model training use scaled features. Confirm whether you want to train only on selected features or on the full set.
+- The model target is log1p transformed; interpret metric values in transformed space (inverse transform predictions with expm1 for business-facing metrics).
+- Missing values are imputed with simple strategies (means or zeros); consider more robust imputation if needed.
 
-Possible improvements
----------------------
-- Use feature selection or regularization tuning with a wider grid.
-- Try tree-based models (RandomForest, XGBoost) which can capture non-linear relationships.
-- Add polynomial features or interactions for more expressive linear models.
-- Visualize residuals and predicted vs actual scatter plots to spot systematic errors.
-- Persist trained models with joblib / pickle and provide an inference API.
-- If dataset is large or imbalanced across plays/players, consider stratified sampling or grouping by play to avoid data leakage.
+Suggested next steps / improvements
+----------------------------------
+- Improve parsing of textual fields (robust K/+, ranges, and currency symbols).
+- Use cross-validation for final performance reporting and consider time-based splits if data contains time dependencies.
+- Try tree-based and ensemble models (RandomForest, XGBoost, LightGBM) which often perform better on tabular e-commerce data.
+- Build a separate pipeline that persists trained models (joblib) and exposes an API for inference.
+- Add SHAP or permutation importance to explain model predictions and support business decisions.
+- Revisit outlier removal: consider winsorizing, robust scaling, or per-column thresholds.
+- Expand feature engineering: category hierarchy, brand effects, text features from title (TF-IDF / embeddings), temporal seasonality from `collected_at`.
 
 
-
-=======
-# Amazon-Electronics-Sales-Demand-Modeling-
->>>>>>> 38c92683fa9654ce767fe44a311fc3db9802ed9b
