@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Ball_Landing_Position_Prediction
 
 Project summary
@@ -140,3 +141,6 @@ Possible improvements
 
 
 
+=======
+# Amazon-Electronics-Sales-Demand-Modeling-
+>>>>>>> 38c92683fa9654ce767fe44a311fc3db9802ed9b
